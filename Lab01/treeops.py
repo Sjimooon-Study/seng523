@@ -20,8 +20,53 @@ def do_cmp(fname1, fname2):
 
 # Provide the solution to Exercise 3 by implementing the function below
 def do_dst(fname1, fname2):
-    print("WHOPS! 'dst' command not implemented!")
-    return -1
+    # parse programs into ASTs
+    with open(fname1) as file:
+        tree1 = ast.parse(file.read(), filename=fname1)
+    with open(fname2) as file:
+        tree2 = ast.parse(file.read(), filename=fname2)
+
+    def update_cost(node1, node2):
+        # AST node labels are their types. ie. Mult or Add
+        if type(node1) is type(node2):
+            return 0
+        else:
+            return 1
+
+    def get_children(node):
+        # zss needs a reusable list rather than ast's child-node iterator
+        children = []
+        for child in ast.iter_child_nodes(node):
+            children.append(child)
+        return children
+
+    def insert_cost(node):
+        # every inserted or removed AST node costs an edit
+        return 1
+
+    def remove_cost(node):
+        return 1
+
+    distance = zss.distance(
+        tree1,
+        tree2,
+        get_children,
+        insert_cost,
+        remove_cost,
+        update_cost,
+    )
+
+    # normalize by total number of nodes in both ASTs
+    node_count = 0
+    for node in ast.walk(tree1):
+        node_count += 1
+    for node in ast.walk(tree2):
+        node_count += 1
+
+    normalized_distance = distance / node_count
+
+    print(f"The normalized tree edit distance is {normalized_distance}")
+    return 0
 
 # Provide the solution to Exercise 4 by implementing the function below
 def do_run(fname):
