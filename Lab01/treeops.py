@@ -14,9 +14,36 @@ def main():
         return -1
 
 # Provide the solution to Exercise 2 by implementing the function below
+
 def do_cmp(fname1, fname2):
-    print("WHOPS! 'cmd' command not implemented!")
-    return -1
+    with open(fname1) as f:
+        tree1 = ast.parse(f.read())
+    with open(fname2) as f:
+        tree2 = ast.parse(f.read())
+
+    stack1 = [tree1]
+    stack2 = [tree2]
+
+    while stack1:
+        n1 = stack1.pop()
+        n2 = stack2.pop()
+
+        if type(n1) != type(n2):
+            print("The programs are not identical")
+            return 0
+
+        c1 = list(ast.iter_child_nodes(n1))
+        c2 = list(ast.iter_child_nodes(n2))
+
+        if len(c1) != len(c2):
+            print("The programs are not identical")
+            return 0
+
+        stack1.extend(c1)
+        stack2.extend(c2)
+
+    print("The programs are identical")
+    return 1
 
 # Provide the solution to Exercise 3 by implementing the function below
 def do_dst(fname1, fname2):
