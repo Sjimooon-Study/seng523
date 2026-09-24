@@ -1,5 +1,8 @@
 import sys
 import ast
+from ast import If, FunctionDef, Return
+from typing import List
+
 
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "unused":
@@ -23,8 +26,37 @@ def do_unused(fname):
 
 # Exercise 2
 def do_returns(fname):
-    print("RETURNS not implemented")
+    # Read the file
+    code = open(fname).read()
+    tree = ast.parse(code)
+
+    # Run the visitor
+    visitor = ReturnsVisitor()
+    visitor.visit(tree)
+
     return -1
+
+class ReturnsVisitor(ast.NodeVisitor):
+    def __init__(self):
+        pass
+
+    def visit_FunctionDef(self, node: FunctionDef):
+        if not self.has_return(node.body):
+            function_name = node.name
+            print(f'Function {function_name} is missing return statements')
+        #self.visit(node)
+
+    def has_return(self, statements: List[ast.stmt]) -> bool:
+        for statement in statements:
+            if isinstance(statement, Return):
+                return True
+
+            if isinstance(statement, If):
+                if self.has_return(statement.body) and self.has_return(statement.orelse):
+                    return True
+
+        return False
+
 
 # Exercise 3
 def do_constant(fname):
