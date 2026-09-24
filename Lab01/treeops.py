@@ -97,16 +97,16 @@ def do_dst(fname1, fname2):
 
 # Provide the solution to Exercise 4 by implementing the function below
 def do_run(fname):
-    # Load code from file.
+    # read the file
     code = open(fname).read()
     tree = ast.parse(code)
 
-    # Visit the tree and calculate value for all variables.
+    # evaluate the assignments
     visitor = AddAndMultiplyVisitor()
     visitor.visit(tree)
 
-    # Print value for the variable 'r'.
-    print(f"The value is {visitor.get_result('r')}")
+    # print the final value
+    print(f"The result is {visitor.get_result(visitor.last_assigned_name)}")
 
     return -1
 
@@ -114,14 +114,16 @@ def do_run(fname):
 class AddAndMultiplyVisitor(ast.NodeVisitor):
     def __init__(self):
         self.variable_values = dict()
+        self.last_assigned_name = None
 
     def visit_Assign(self, node: ast.Assign):
-        # Get value being assigned.
+        # get val being assigned
         value = self.get_value(node.value)
         for target in node.targets:
             if isinstance(target, ast.Name):
-                # Store value. 'target.id' is variable name.
+                # store val, 'target.id' is var name
                 self.variable_values[target.id] = value
+                self.last_assigned_name = target.id
 
     def visit_BinOp(self, node):
         return self.get_value(node)
@@ -129,21 +131,21 @@ class AddAndMultiplyVisitor(ast.NodeVisitor):
     def get_value(self, node: ast.AST) -> float:
         """Resolve the numeric value of a given node; constant, variable, or binary operation."""
 
-        # Return constants as their value.
+        # return constants as their val
         if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
             return node.value
 
-        # Return stored value for a variable name.
+        # return stored val for a var name
         if isinstance(node, ast.Name):
             return self.variable_values[node.id]
 
-        # Perform an arithmetic operation.
+        #do an arithmetic operation
         if isinstance(node, ast.BinOp):
-            # Get the value for the left and right side of the operation.
+            # get the val for the left and right side of the operation
             left = self.get_value(node.left)
             right = self.get_value(node.right)
 
-            # Add or multiply the values.
+            # add or multiply the values
             if isinstance(node.op, ast.Add):
                 return left + right
             if isinstance(node.op, ast.Mult):
