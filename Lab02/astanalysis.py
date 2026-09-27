@@ -1,7 +1,7 @@
 import sys
 import ast
-from ast import If, FunctionDef, Return
-from typing import List
+from ast import If, FunctionDef, Return, Assign
+from typing import List, cast
 
 
 def main():
@@ -63,16 +63,76 @@ def do_constant(fname):
     print("CONSTANT not implemented")
     return -1
 
+
 # Exercise 4
 def do_secret(fname):
     print("SECRET not implemented")
     return -1
 
+
 # Exercise 5
 def do_taint(fname):
-    print("TAINT not implemented")
+    # Read the file
+    code = open(fname).read()
+    tree = ast.parse(code)
+
+    # Run the visitor
+    visitor = TaintVisitor()
+    visitor.visit(tree)
+
     return -1
 
+class TaintVisitor(ast.NodeVisitor):
+    def __init__(self):
+        self.tainted_vars = []
+        self.sources = {"input"}
+        self.sanitizers = {"sanitized"}
+        self.sinks = {"os.system"}
+
+    def visit_Assign(self, node: Assign):
+        if self.is_expr_tainted(node.value):
+            self.tainted_vars.append(node.targets[0].id)
+        self.visit(node.value)
+
+    def visit_Call(self, node: ast.Call):
+        if self.dotted_name(node.func) in self.sinks:
+            for arg in node.args:
+                if self.is_expr_tainted(arg):
+                    print('Unsafe data flow between source and sink detected')
+        #self.visit(node)
+
+    def is_expr_tainted(self, node: ast.expr) -> bool:
+        if isinstance(node, ast.Name):
+            return node.id in self.tainted_vars
+
+        if isinstance(node, ast.Call):
+            call = cast(ast.Call, node)
+            if self.dotted_name(call.func) in self.sources:
+                return True
+
+            if self.dotted_name(call.func) in self.sanitizers:
+                return False
+
+            for arg in call.args:
+                if self.is_expr_tainted(arg):
+                    return True
+
+        if isinstance(node, ast.BinOp):
+            if self.is_expr_tainted(node.left) or self.is_expr_tainted(node.right):
+                return True
+
+        return False
+
+    def dotted_name(self, node: ast.expr) -> str | None:
+        if isinstance(node, ast.Name):
+            return node.id
+
+        if isinstance(node, ast.Attribute):
+            prefix = self.dotted_name(node.value)
+
+            return f"{prefix}.{node.attr}" if prefix else None
+
+        return None
 
 if __name__ == "__main__":
     main()
