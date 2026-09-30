@@ -60,9 +60,29 @@ class ReturnsVisitor(ast.NodeVisitor):
 
 # Exercise 3
 def do_constant(fname):
-    print("CONSTANT not implemented")
+    with open(fname) as source_file:
+        tree = ast.parse(source_file.read())
+
+    ConstantVisitor().visit(tree)
     return -1
 
+class ConstantVisitor(ast.NodeVisitor):
+    def visit_If(self, node: If):
+        if self.is_constant_condition(node.test):
+            print("Conditional statement with constant condition detected")
+        self.generic_visit(node)
+
+    def is_constant_condition(self, node: ast.expr) -> bool:
+        if isinstance(node, ast.Constant):
+            return True
+
+        if isinstance(node, ast.Compare):
+            return all(
+                isinstance(operand, ast.Constant)
+                for operand in [node.left, *node.comparators]
+            )
+
+        return False
 
 # Exercise 4
 def do_secret(fname):
