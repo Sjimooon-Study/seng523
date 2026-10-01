@@ -1,5 +1,6 @@
 import sys
 import ast
+import re
 from ast import If, FunctionDef, Return, Assign
 from typing import List, cast
 
@@ -127,9 +128,29 @@ class ConstantVisitor(ast.NodeVisitor):
 
 # Exercise 4
 def do_secret(fname):
-    print("SECRET not implemented")
+    with open(fname) as source_file:
+        tree = ast.parse(source_file.read())
+
+    SecretVisitor().visit(tree)
     return -1
 
+class SecretVisitor(ast.NodeVisitor):
+    secret_pattern = re.compile(r"WOWSECRET_\d{2,5}_[A-Z]{4}")
+    secret_name_parts = ("secret", "password", "key", "token")
+
+    def visit_Assign(self, node: Assign):
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            value = node.value.value
+            if self.secret_pattern.fullmatch(value):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and self.has_secret_name(target.id):
+                        print(f"Variable {target.id} assigned possible secret {value}")
+
+        self.generic_visit(node)
+
+    def has_secret_name(self, name: str) -> bool:
+        lowered_name = name.lower()
+        return any(part in lowered_name for part in self.secret_name_parts)
 
 # Exercise 5
 def do_taint(fname):
