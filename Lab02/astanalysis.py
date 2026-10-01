@@ -21,8 +21,49 @@ def main():
     
 # Exercise 1
 def do_unused(fname):
-    print("UNUSED not implemented")
+    with open(fname) as source_file:
+        tree = ast.parse(source_file.read())
+
+    UnusedVisitor().visit(tree)
     return -1
+
+class UnusedVisitor(ast.NodeVisitor):
+    def __init__(self):
+        self.scopes = []
+
+    def visit_FunctionDef(self, node: FunctionDef):
+        params = {arg.arg for arg in node.args.args}
+        self.scopes.append({"assigned": [], "params": params, "used": set(), "inner_defined": set()})
+        for statement in node.body:
+            self.visit(statement)
+        scope = self.scopes.pop()
+
+        local_names = set(scope["assigned"]) | scope["params"]
+
+        for name in scope["assigned"]:
+            if name not in scope["used"]:
+                print(f"Variable {name} is defined but not used in scope {node.name}")
+
+        for name in scope["assigned"]:
+            if name in scope["inner_defined"]:
+                print(f"Variable {name} is aliased across scopes")
+
+        if self.scopes:
+            outer = self.scopes[-1]
+            outer["used"] |= scope["used"] - local_names
+            outer["inner_defined"] |= set(scope["assigned"]) | scope["inner_defined"]
+
+    def visit_Name(self, node: ast.Name):
+        if not self.scopes:
+            return
+
+        scope = self.scopes[-1]
+        if isinstance(node.ctx, ast.Store):
+            if node.id not in scope["assigned"]:
+                scope["assigned"].append(node.id)
+        else:
+            scope["used"].add(node.id)
+
 
 # Exercise 2
 def do_returns(fname):
