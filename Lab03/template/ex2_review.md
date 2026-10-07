@@ -1,4 +1,10 @@
 ### vulnerable_applications/command_injection.py
+This script allows for OS command injections. `os.system()` will run its argument in the system shell, so special characters like `&&` or `;`, which are commonly used in linux commands, let an attacker chain on their own commands. `variable1(cmd)` runs whatever command it is given directly. `variable2(user)` and `variable3(user)` build the command by inserting user input into a string, so we can do something like `user = "; rm -rf ~"`, which lets the attacker break out of our intended command. `constantstr()` is safe since the command is hardcoded.
+
+Resources:
+- https://docs.python.org/3/library/os.html#os.system
+- https://owasp.org/www-community/attacks/Command_Injection
+
 
 ### vulnerable_applications/eval_exec.py
 `my_eval()` returns the results from a single Python expression (calls `eval()`). `my_exec()` execute some block of Python code (calls `exec()`). Both of these can be risky since they will allow a potential attacker to do remote code execution. The evaluated expression (or expressions in `exec()`) will be executed in the current scope, which means an attacker will have access to other variables visible from that scope and can influence the entirety of that scope. An attacker will also be able to "break out of the Python script" and execute system commands with this expression: `__import__('os').system(...)`
