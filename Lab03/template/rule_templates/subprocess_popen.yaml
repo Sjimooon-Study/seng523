@@ -3,5 +3,21 @@ rules:
     message: "Potential command injection: subprocess called with shell=True and variable command"
     severity: WARNING
     languages: [python]
-    pattern-either:
-      # TODO: add patterns to detect relevant calls
+    patterns:
+      - pattern-either:
+          - patterns:
+              - pattern: subprocess.$FUNC($ARG, shell=True)
+              - pattern-not: subprocess.$FUNC([...], shell=True)
+              - metavariable-pattern:
+                  metavariable: $ARG
+                  patterns:
+                    - pattern-not: '"..."'
+          - patterns:
+              - pattern: subprocess.$FUNC([..., $ARG, ...], shell=True)
+              - metavariable-pattern:
+                  metavariable: $ARG
+                  patterns:
+                    - pattern-not: '"..."'
+      - metavariable-regex:
+          metavariable: $FUNC
+          regex: ^(Popen|run)$

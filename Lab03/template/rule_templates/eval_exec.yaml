@@ -3,12 +3,27 @@ rules:
     message: Use of eval with variable (possible code injection)
     severity: WARNING
     languages: [python]
+    # Detect eval w/ variable argument
     patterns:
-      # TODO: detect eval w/ variable argument
+      - pattern: eval(..., $ARG, ...)
+      - metavariable-pattern:
+          metavariable: $ARG
+          patterns:
+            - pattern-not: '"..."'
+      #- pattern: exec(...)
+      #- pattern-not: exec("...")
+
 
   - id: py-exec-variable
     message: Use of exec with variable (possible code injection)
     severity: WARNING
     languages: [python]
+    # Detect exec w/ variable argument
     patterns:
-      # TODO: detect exec w/ variable argument
+      - pattern: exec(..., $ARG, ...)
+      - metavariable-pattern:
+          metavariable: $ARG
+          patterns:
+            - pattern-not: '"..."'
+      #- pattern: exec(...)
+      #- pattern-not: exec("...")
