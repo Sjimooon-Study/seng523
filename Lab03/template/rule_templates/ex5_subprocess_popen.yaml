@@ -6,14 +6,27 @@ rules:
     patterns:
       - pattern-either:
           - patterns:
-              - pattern: subprocess.$FUNC($ARG, shell=True)
-              - pattern-not: subprocess.$FUNC([...], shell=True)
+              - pattern: subprocess.$FUNC($ARG, ..., shell=True, ...)
+              - pattern-not: subprocess.$FUNC([...], ..., shell=True, ...)
               - metavariable-pattern:
                   metavariable: $ARG
                   patterns:
                     - pattern-not: '"..."'
           - patterns:
-              - pattern: subprocess.$FUNC([..., $ARG, ...], shell=True)
+              - pattern: subprocess.$FUNC([..., $ARG, ...], shell=True, ...)
+              - metavariable-pattern:
+                  metavariable: $ARG
+                  patterns:
+                    - pattern-not: '"..."'
+          - patterns:
+              - pattern: subprocess.$FUNC(..., args=$ARG, ..., shell=True, ...)
+              - pattern-not: subprocess.$FUNC(..., args=[...], ..., shell=True, ...)
+              - metavariable-pattern:
+                  metavariable: $ARG
+                  patterns:
+                    - pattern-not: '"..."'
+          - patterns:
+              - pattern: subprocess.$FUNC(..., args=[..., $ARG, ...], shell=True, ...)
               - metavariable-pattern:
                   metavariable: $ARG
                   patterns:

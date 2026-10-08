@@ -17,3 +17,18 @@ def popen5(user):
 
 def popen6():
     subprocess.run(["echo", "hello"], shell=True)
+
+def popen7(user):
+    subprocess.run(args=user, shell=True)
+
+def popen8(user):
+    subprocess.run(user, shell=True, check=True)
+
+def popen9():
+    subprocess.run("echo hello", shell=True, check=True)
+
+def popen10():
+    subprocess.run(args=["echo", "hello"], shell=True)
+
+def popen11(user):
+    subprocess.run(args=["sh", "-c", "echo " + user], shell=True)
