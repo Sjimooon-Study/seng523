@@ -5,7 +5,9 @@ rules:
     languages: [python]
     pattern-either:
       - patterns:
-          - pattern: open($ARG, ...)
+          - pattern-either:
+              - pattern: open($ARG, ...)
+              - pattern: open(..., file=$ARG, ...)
           - metavariable-pattern:
               metavariable: $ARG
               patterns:

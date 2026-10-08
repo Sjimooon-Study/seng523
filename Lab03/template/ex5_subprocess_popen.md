@@ -9,3 +9,5 @@ The second child pattern matches all the array arguments. Using the same `metava
 The third and fourth pattern are like the first and second respectively, but will catch cases where the argument is passed using the parameter name `args`.
 
 In all patterns, we make it so `shell=True` doesn't have to be the last argument, by adding the ellipsis after it in the patterns. It can be preceded zero or more other arguments. We also ellipsies between the argument and `shell=True`, so that they don't have to be exactly next to each other. 
+
+note: on the provided `subprocess_popen.py`, the rule flags `popen2()` and `popen4()`, which are the only two calls that use `shell=True` with a variable in the command. The lab slides list `popen1()` instead of `popen2()`, but `popen1()` is not flagged because it does not use `shell=True`, so it shouldn't meet the criteria for this exercise.
