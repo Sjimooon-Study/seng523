@@ -22,3 +22,7 @@ Resources:
 - https://docs.python.org/2/library/subprocess.html#frequently-used-arguments
 
 ### vulnerable_applications/path_traversal.py
+The `open()` function follows the given path and reads the bytes of that file, letting you read its contents. With a relative path, the input can include something like `"uploads/" + "../"`, which means the incoming input can go outside of the intended scope. In this script, the functions that let the user input whatever path they want are `opener()`, `opener_concat()` and `opener_join_var()`. `opener_join_varconst()` forces the ending `/downloads`, which is a small sanitization, but the user can still go to another user's downloads folder. `opener_const_concat()` and `opener_join_const()` are safe because the path is hardcoded. This can be very vulnerable if the system does not have a permission-based system, because a low-level user could then go into every file, such as our database files and passwords. They could leak all the files of the system, and by reading different files, they could discover other vulnerabilities in our own system. To prevent this, the important thing is to have a filter that only allows certain user input, or a blacklist of keywords like `../`, to stop the user from going outside of the desired scope.
+
+Resources:
+- https://docs.python.org/3/library/functions.html#open
