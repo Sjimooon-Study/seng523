@@ -4,11 +4,21 @@ rules:
     severity: WARNING
     languages: [python]
     pattern-either:
-      # Fill in the detection rules
-  
+      - patterns:
+          - pattern: open($ARG, ...)
+          - metavariable-pattern:
+              metavariable: $ARG
+              patterns:
+                - pattern-not: '"..."'
+
   - id: py-join-variable
     message: "Potential path traversal: os.path.join() with variable or mixed input"
     severity: WARNING
     languages: [python]
     pattern-either:
-      # Fill in the detection rules
+      - patterns:
+          - pattern: os.path.join(..., $ARG, ...)
+          - metavariable-pattern:
+              metavariable: $ARG
+              patterns:
+                - pattern-not: '"..."'
