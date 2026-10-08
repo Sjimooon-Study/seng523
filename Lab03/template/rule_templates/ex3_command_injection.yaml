@@ -1,0 +1,8 @@
+rules:
+  - id: os-system-variable
+    message: "Use of os.system with variable input (possible command injection)"
+    severity: WARNING
+    languages: [python]
+    patterns:
+      - pattern: os.system(...)
+      - pattern-not: os.system("...")

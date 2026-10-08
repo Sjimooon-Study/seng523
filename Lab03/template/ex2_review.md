@@ -1,5 +1,5 @@
 ### vulnerable_applications/command_injection.py
-This script allows for OS command injections. `os.system()` will run its argument in the system shell, so special characters like `&&` or `;`, which are commonly used in linux commands, let an attacker chain on their own commands. `variable1(cmd)` runs whatever command it is given directly. `variable2(user)` and `variable3(user)` build the command by inserting user input into a string, so we can do something like `user = "; rm -rf ~"`, which lets the attacker break out of our intended command. `constantstr()` is safe since the command is hardcoded.
+This script allows for OS command injections. `os.system()` will run its argument in the system shell, so special characters like `&&` or `;`, which are commonly used in linux commands, let an attacker chain on their own commands. `variable1(cmd)` runs whatever command it is given directly. `variable2(user)` and `variable3(user)` build the command by inserting user input into a string, so we can do something like `user = "; rm -rf ~"`, which lets the attacker break out of our intended command. `constantstr()` is safe since the command is hardcoded and doesn't allow for user input. 
 
 Resources:
 - https://docs.python.org/3/library/os.html#os.system
