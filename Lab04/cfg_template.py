@@ -276,6 +276,60 @@ def make_cfg(stmts: List[ast.stmt]) -> ControlFlowGraph:
     return cfg
 
 
+# ---------------------------------------------------------------------------
+# Output
+# ---------------------------------------------------------------------------
+
+def _block_key(block: BasicBlock) -> int:
+    return int(block.id[2:])
+
+def _fmt(items, sep=",") -> str:
+    """Formats a list after a label: ' a,b' or '' when empty."""
+    items = list(items)
+    return " " + sep.join(items) if items else ""
+
+def _print_header(block: BasicBlock):
+    if block.kind == BlockKind.ENTRY:
+        print(f"Basic Block {block.id}: ENTRY")
+    elif block.kind == BlockKind.EXIT:
+        print(f"Basic Block {block.id}: EXIT")
+    else:
+        print(f"Basic Block {block.id}:")
+
+def _print_edges(block: BasicBlock):
+    preds = sorted(block.predecessors, key=_block_key)
+    succs = sorted(block.successors, key=_block_key)
+    print(f"  Predecessors:{_fmt((b.id for b in preds), ', ')}")
+    print(f"  Successors:{_fmt((b.id for b in succs), ', ')}")
+
+def _ordered_blocks(cfg: ControlFlowGraph) -> List[BasicBlock]:
+    return sorted(cfg.blocks, key=_block_key)
+
+def print_cfg(cfg: ControlFlowGraph):
+    for block in _ordered_blocks(cfg):
+        _print_header(block)
+        if block.kind == BlockKind.NORMAL:
+            print("  Statements:")
+            for stmt in block.statements:
+                print(f"    {stmt.stmt_type.capitalize()}: defs:{_fmt(stmt.defs)}; uses:{_fmt(stmt.uses)}")
+        _print_edges(block)
+
+
+# ---------------------------------------------------------------------------
+# Driver
+# ---------------------------------------------------------------------------
+
+def _load_bodies(fname) -> List[tuple]:
+    """
+    Returns (name, statements) pairs to analyze. A file made only of function
+    definitions yields one CFG per function body; otherwise the module body.
+    """
+    with open(fname) as f:
+        tree = ast.parse(f.read(), filename=fname)
+    if tree.body and all(isinstance(n, ast.FunctionDef) for n in tree.body):
+        return [(n.name, n.body) for n in tree.body]
+    return [(None, tree.body)]
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "CFG":
         return do_CFG(sys.argv[2])
@@ -284,11 +338,15 @@ def main():
     else:
         print("Usage: python cfg.py <cmd> <file>")
         return -1
-    
+
 # Exercise 1
 def do_CFG(fname):
-    print("CFG not implemented")
-    return -1
+    bodies = _load_bodies(fname)
+    for name, stmts in bodies:
+        if len(bodies) > 1:
+            print(f"Function {name}:")
+        print_cfg(make_cfg(stmts))
+    return 0
 
 # Exercise 2
 def do_liveness(fname):
