@@ -1,4 +1,5 @@
 import ast
+import queue
 from typing import List, Set, Optional, Dict
 import sys
 
@@ -44,11 +45,10 @@ class BasicBlock:
         self.statements: List[Statement] = []
         self.def_set: Set[str] = set() #variables written in the block
         self.use_set: Set[str] = set() #read before any write in the block
+        self.in_set: Set[str] = set()
+        self.out_set: Set[str] = set()
         self.predecessors: List['BasicBlock'] = []
         self.successors: List['BasicBlock'] = []
-        #TODO: for liveness analysis later 
-        self.live_in: Set[str] = set()
-        self.live_out: Set[str] = set()
 
     def add_statement(self, stmt: Statement):
         self.statements.append(stmt)
@@ -281,6 +281,44 @@ def print_cfg(cfg: ControlFlowGraph):
                 print(f"    {stmt.stmt_type.capitalize()}: defs:{_fmt(stmt.defs)}; uses:{_fmt(stmt.uses)}")
         _print_edges(block)
 
+def print_liveness(cfg: ControlFlowGraph):
+    for block in _ordered_blocks(cfg):
+        _print_header(block)
+        if block.kind == BlockKind.NORMAL:
+            print(f"  defs:{_fmt(sorted(block.def_set))}")
+            print(f"  uses:{_fmt(sorted(block.use_set))}")
+            print(f"  in:{_fmt(sorted(block.in_set))}")
+            print(f"  out:{_fmt(sorted(block.out_set))}")
+        _print_edges(block)
+
+def compute_liveness_in_out(cfg: ControlFlowGraph):
+    # Create queue and add all BBs
+    block_queue = queue.Queue()
+    for block in _ordered_blocks(cfg):
+        block_queue.put(block)
+
+    # Fixed point iteration
+    while not block_queue.empty():
+        # Get node from the head of the queue
+        block = block_queue.get()
+
+        # Update out set
+        updated_out_set = set()
+        for successor in block.successors:
+            updated_out_set = updated_out_set.union(successor.in_set)
+
+        # Update in set
+        updated_in_set = block.use_set | (block.out_set - block.def_set)
+
+        # If in has changed; add all predecessors of the node is enqueued
+        if (block.out_set != updated_out_set or
+            block.in_set != updated_in_set):
+            for predecessors in block.predecessors:
+                block_queue.put(predecessors)
+
+        block.out_set = updated_out_set
+        block.in_set = updated_in_set
+
 def _load_bodies(fname) -> List[tuple]:
     with open(fname) as f:
         tree = ast.parse(f.read(), filename=fname)
@@ -308,10 +346,14 @@ def do_CFG(fname):
 
 # Exercise 2
 def do_liveness(fname):
-    print("LIVENESS not implemented")
-    return -1
-
-
+    bodies = _load_bodies(fname)
+    for name, stmts in bodies:
+        if len(bodies) > 1:
+            print(f"Function {name}:")
+        cfg = make_cfg(stmts)
+        compute_liveness_in_out(cfg)
+        print_liveness(cfg)
+    return 0
 
 if __name__ == "__main__":
     main()
