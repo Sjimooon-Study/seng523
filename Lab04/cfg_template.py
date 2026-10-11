@@ -169,16 +169,79 @@ def make_statement(node: ast.stmt) -> Statement:
     return Statement(StatementType.OTHER, _names(node, ast.Store), _names(node), node)
 
 
-def make_cfg(ast_node: ast.AST) -> ControlFlowGraph:
+# ---------------------------------------------------------------------------
+# CFG construction
+# ---------------------------------------------------------------------------
+
+def _build(stmts: List[ast.stmt], current: BasicBlock, cfg: ControlFlowGraph) -> BasicBlock:
     """
-    Constructs a Control Flow Graph (CFG) from the given AST node (tree or subtree).
-    Returns a ControlFlowGraph instance representing the CFG.
+    Adds the statements in `stmts` to the CFG, starting in block `current`.
+    Returns the block where control falls through after the last statement.
+    Never creates entry/exit blocks, so it can recurse into if/while bodies.
     """
+    for node in stmts:
+        if isinstance(node, ast.Pass):
+            continue
+
+        if isinstance(node, ast.If):
+            # The condition ends the current block
+            current.add_statement(make_statement(node))
+
+            then_block = cfg.new_block()
+            cfg.add_edge(current, then_block)
+            then_tail = _build(node.body, then_block, cfg)
+
+            else_tail = None
+            if node.orelse:
+                else_block = cfg.new_block()
+                cfg.add_edge(current, else_block)
+                else_tail = _build(node.orelse, else_block, cfg)
+
+            join = cfg.new_block()
+            cfg.add_edge(then_tail, join)
+            # Without an else, the false edge goes straight to the join
+            cfg.add_edge(else_tail if else_tail is not None else current, join)
+            current = join
+
+        elif isinstance(node, ast.While):
+            # The condition gets its own block: it is the target of the back-edge
+            cond = cfg.new_block()
+            cfg.add_edge(current, cond)
+            cond.add_statement(make_statement(node))
+
+            body = cfg.new_block()
+            cfg.add_edge(cond, body)
+            body_tail = _build(node.body, body, cfg)
+            cfg.add_edge(body_tail, cond)
+
+            after = cfg.new_block()
+            cfg.add_edge(cond, after)
+            current = after
+
+        elif isinstance(node, ast.Return):
+            current.add_statement(make_statement(node))
+            cfg.add_edge(current, cfg.exit)
+            # Code after a return is unreachable: it starts a block with no predecessors
+            current = cfg.new_block()
+
+        else:
+            current.add_statement(make_statement(node))
+
+    return current
+
+def make_cfg(stmts: List[ast.stmt]) -> ControlFlowGraph:
+    """
+    Constructs a Control Flow Graph (CFG) from a list of statements
+    (a module or function body).
+    """
+    _reset_basic_block_ids()
     cfg = ControlFlowGraph()
-    # TODO: Traverse the AST and build basic blocks and edges.
-    # This is a template; actual implementation should analyze the AST,
-    # create Statement objects, group them into BasicBlocks, and connect blocks.
+    first = cfg.new_block()
+    cfg.add_edge(cfg.entry, first)
+    tail = _build(stmts, first, cfg)
+    cfg.add_edge(tail, cfg.exit)
     return cfg
+
 
 
 def main():
