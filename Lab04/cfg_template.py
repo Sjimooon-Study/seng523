@@ -229,6 +229,37 @@ def _build(stmts: List[ast.stmt], current: BasicBlock, cfg: ControlFlowGraph) ->
 
     return current
 
+def _remove_empty_blocks(cfg: ControlFlowGraph):
+    """
+    Drops empty blocks left behind by construction (e.g. a join/after-loop
+    block with no code after it), connecting their predecessors directly to
+    their successors.
+    """
+    changed = True
+    while changed:
+        changed = False
+        for block in cfg.blocks:
+            if block.kind != BlockKind.NORMAL or block.statements:
+                continue
+            preds = [p for p in block.predecessors if p is not block]
+            succs = [s for s in block.successors if s is not block]
+            cfg.remove_block(block)
+            for p in preds:
+                for s in succs:
+                    cfg.add_edge(p, s)
+            changed = True
+            break
+
+def _renumber_blocks(cfg: ControlFlowGraph):
+    """Entry is BB0, other blocks follow in creation order, exit is last."""
+    cfg.entry.id = "BB0"
+    n = 1
+    for block in cfg.blocks:
+        if block.kind == BlockKind.NORMAL:
+            block.id = f"BB{n}"
+            n += 1
+    cfg.exit.id = f"BB{n}"
+
 def make_cfg(stmts: List[ast.stmt]) -> ControlFlowGraph:
     """
     Constructs a Control Flow Graph (CFG) from a list of statements
@@ -240,8 +271,9 @@ def make_cfg(stmts: List[ast.stmt]) -> ControlFlowGraph:
     cfg.add_edge(cfg.entry, first)
     tail = _build(stmts, first, cfg)
     cfg.add_edge(tail, cfg.exit)
+    _remove_empty_blocks(cfg)
+    _renumber_blocks(cfg)
     return cfg
-
 
 
 def main():
