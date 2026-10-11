@@ -30,7 +30,7 @@ class BlockKind:
 class Statement:
     def __init__(self, stmt_type: str, defs: List[str], uses: List[str], ast_node: ast.AST):
         self.stmt_type: str = stmt_type
-        # Ordered (source order, de-duplicated) so output matches the source
+        #ordered so output matches the source
         self.defs: List[str] = defs
         self.uses: List[str] = uses
         self.def_set: Set[str] = set(defs)
@@ -42,20 +42,17 @@ class BasicBlock:
         self.id: str = _next_basic_block_id()
         self.kind: str = kind
         self.statements: List[Statement] = []
-        # def_set: variables written in the block
-        # use_set: upward-exposed uses (read before any write in this block)
-        self.def_set: Set[str] = set()
-        self.use_set: Set[str] = set()
-        # Lists (not sets) so edge order is deterministic
+        self.def_set: Set[str] = set() #variables written in the block
+        self.use_set: Set[str] = set() #read before any write in the block
         self.predecessors: List['BasicBlock'] = []
         self.successors: List['BasicBlock'] = []
-        # Filled in by the liveness analysis (exercise 2)
+        #TODO: for liveness analysis later 
         self.live_in: Set[str] = set()
         self.live_out: Set[str] = set()
 
     def add_statement(self, stmt: Statement):
         self.statements.append(stmt)
-        # Uses come first: in "x = x - 1" the read of x happens before the write
+        #ie. in x = x - 1, the read of x happens before the write
         self.use_set.update(stmt.use_set - self.def_set)
         self.def_set.update(stmt.def_set)
 
@@ -69,7 +66,7 @@ class ExitBlock(BasicBlock):
 
 class ControlFlowGraph:
     def __init__(self):
-        # Kept in creation order; this drives final numbering
+        #keep in creation order
         self.blocks: List[BasicBlock] = []
         self.entry: EntryBlock = EntryBlock()
         self.exit: ExitBlock = ExitBlock()
@@ -99,13 +96,8 @@ class ControlFlowGraph:
         block.successors = []
         self.blocks.remove(block)
 
-
-# ---------------------------------------------------------------------------
-# AST -> Statement
-# ---------------------------------------------------------------------------
-
+# AST to statement
 class _NameCollector(ast.NodeVisitor):
-    """Collects variable names in source order, filtered by context."""
     def __init__(self, ctx_type):
         self.ctx_type = ctx_type
         self.names: List[str] = []
@@ -115,7 +107,7 @@ class _NameCollector(ast.NodeVisitor):
             self.names.append(node.id)
 
     def visit_Call(self, node: ast.Call):
-        # The called function's name (e.g. print) is not a variable use
+        #a fxn name isnt a variable use
         if not isinstance(node.func, ast.Name):
             self.visit(node.func)
         for arg in node.args:
@@ -143,20 +135,17 @@ def _is_print(node: ast.AST) -> bool:
             and isinstance(node.value.func, ast.Name) and node.value.func.id == "print")
 
 def make_statement(node: ast.stmt) -> Statement:
-    """Classifies a statement and computes its def/use lists."""
     if isinstance(node, ast.Assign):
         defs = _merge(*[_names(t, ast.Store) for t in node.targets])
-        # Names loaded inside targets (e.g. a[i] = ...) are uses too
+        # names loaded in targets are uses
         uses = _merge(_names(node.value), *[_names(t) for t in node.targets])
         return Statement(StatementType.ASSIGNMENT, defs, uses, node)
     if isinstance(node, ast.AugAssign):
-        # x += e reads x before writing it
+        # x += y reads x before writing it
         target = _names(node.target, ast.Store)
-        return Statement(StatementType.ASSIGNMENT, target,
-                         _merge(target, _names(node.value)), node)
+        return Statement(StatementType.ASSIGNMENT, target, _merge(target, _names(node.value)), node)
     if isinstance(node, ast.AnnAssign):
-        return Statement(StatementType.ASSIGNMENT, _names(node.target, ast.Store),
-                         _names(node.value), node)
+        return Statement(StatementType.ASSIGNMENT, _names(node.target, ast.Store), _names(node.value), node)
     if _is_print(node):
         return Statement(StatementType.PRINT, [], _names(node.value), node)
     if isinstance(node, ast.If):
@@ -165,26 +154,18 @@ def make_statement(node: ast.stmt) -> Statement:
         return Statement(StatementType.WHILE, [], _names(node.test), node)
     if isinstance(node, ast.Return):
         return Statement(StatementType.RETURN, [], _names(node.value), node)
-    # Anything outside the supported syntax: keep it in the block with its uses
+    # keep anything outside the supported syntax in the block
     return Statement(StatementType.OTHER, _names(node, ast.Store), _names(node), node)
 
 
-# ---------------------------------------------------------------------------
-# CFG construction
-# ---------------------------------------------------------------------------
-
+#CFG construction
 def _build(stmts: List[ast.stmt], current: BasicBlock, cfg: ControlFlowGraph) -> BasicBlock:
-    """
-    Adds the statements in `stmts` to the CFG, starting in block `current`.
-    Returns the block where control falls through after the last statement.
-    Never creates entry/exit blocks, so it can recurse into if/while bodies.
-    """
     for node in stmts:
         if isinstance(node, ast.Pass):
             continue
 
         if isinstance(node, ast.If):
-            # The condition ends the current block
+            #ends the current block
             current.add_statement(make_statement(node))
 
             then_block = cfg.new_block()
@@ -199,12 +180,12 @@ def _build(stmts: List[ast.stmt], current: BasicBlock, cfg: ControlFlowGraph) ->
 
             join = cfg.new_block()
             cfg.add_edge(then_tail, join)
-            # Without an else, the false edge goes straight to the join
+            # without an else statement, the false edge should go to the join
             cfg.add_edge(else_tail if else_tail is not None else current, join)
             current = join
 
         elif isinstance(node, ast.While):
-            # The condition gets its own block: it is the target of the back-edge
+            #gets its own block. is also the target of the back-edge
             cond = cfg.new_block()
             cfg.add_edge(current, cond)
             cond.add_statement(make_statement(node))
@@ -221,7 +202,7 @@ def _build(stmts: List[ast.stmt], current: BasicBlock, cfg: ControlFlowGraph) ->
         elif isinstance(node, ast.Return):
             current.add_statement(make_statement(node))
             cfg.add_edge(current, cfg.exit)
-            # Code after a return is unreachable: it starts a block with no predecessors
+            # code after a return is a block with no predecessors
             current = cfg.new_block()
 
         else:
@@ -230,11 +211,6 @@ def _build(stmts: List[ast.stmt], current: BasicBlock, cfg: ControlFlowGraph) ->
     return current
 
 def _remove_empty_blocks(cfg: ControlFlowGraph):
-    """
-    Drops empty blocks left behind by construction (e.g. a join/after-loop
-    block with no code after it), connecting their predecessors directly to
-    their successors.
-    """
     changed = True
     while changed:
         changed = False
@@ -251,7 +227,6 @@ def _remove_empty_blocks(cfg: ControlFlowGraph):
             break
 
 def _renumber_blocks(cfg: ControlFlowGraph):
-    """Entry is BB0, other blocks follow in creation order, exit is last."""
     cfg.entry.id = "BB0"
     n = 1
     for block in cfg.blocks:
@@ -261,10 +236,6 @@ def _renumber_blocks(cfg: ControlFlowGraph):
     cfg.exit.id = f"BB{n}"
 
 def make_cfg(stmts: List[ast.stmt]) -> ControlFlowGraph:
-    """
-    Constructs a Control Flow Graph (CFG) from a list of statements
-    (a module or function body).
-    """
     _reset_basic_block_ids()
     cfg = ControlFlowGraph()
     first = cfg.new_block()
@@ -275,11 +246,7 @@ def make_cfg(stmts: List[ast.stmt]) -> ControlFlowGraph:
     _renumber_blocks(cfg)
     return cfg
 
-
-# ---------------------------------------------------------------------------
-# Output
-# ---------------------------------------------------------------------------
-
+#outputs
 def _block_key(block: BasicBlock) -> int:
     return int(block.id[2:])
 
@@ -314,16 +281,7 @@ def print_cfg(cfg: ControlFlowGraph):
                 print(f"    {stmt.stmt_type.capitalize()}: defs:{_fmt(stmt.defs)}; uses:{_fmt(stmt.uses)}")
         _print_edges(block)
 
-
-# ---------------------------------------------------------------------------
-# Driver
-# ---------------------------------------------------------------------------
-
 def _load_bodies(fname) -> List[tuple]:
-    """
-    Returns (name, statements) pairs to analyze. A file made only of function
-    definitions yields one CFG per function body; otherwise the module body.
-    """
     with open(fname) as f:
         tree = ast.parse(f.read(), filename=fname)
     if tree.body and all(isinstance(n, ast.FunctionDef) for n in tree.body):
