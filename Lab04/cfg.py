@@ -84,8 +84,7 @@ class ControlFlowGraph:
     def add_edge(self, from_block: BasicBlock, to_block: BasicBlock):
         if to_block not in from_block.successors:
             from_block.successors.append(to_block)
-        if (from_block not in to_block.predecessors and
-            from_block not in to_block.successors):
+        if from_block not in to_block.predecessors:
             to_block.predecessors.append(from_block)
 
     def remove_block(self, block: BasicBlock):
