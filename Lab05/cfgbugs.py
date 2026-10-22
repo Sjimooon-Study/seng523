@@ -359,13 +359,6 @@ def do_CFG(fname):
 
 # Exercise 2
 def do_liveness(fname):
-    
-    return 0
-
-
-    
-# Exercise 1
-def do_stores(fname):
     bodies = _load_bodies(fname)
     for name, stmts in bodies:
             if len(bodies) > 1:
@@ -373,6 +366,13 @@ def do_stores(fname):
             cfg = make_cfg(stmts)
             compute_liveness_in_out(cfg)
             print_liveness(cfg)
+    return 0
+
+
+    
+# Exercise 1
+def do_stores(fname):
+
     return 0
 
 # Exercise 2
