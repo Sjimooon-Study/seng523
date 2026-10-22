@@ -14,8 +14,6 @@ def main():
         print("Usage: python cfgbugs.py <cmd> <file>")
         return -1
 
-
-
 # Global counter for BasicBlock IDs
 _basic_block_counter = 0
 
@@ -60,6 +58,7 @@ class BasicBlock:
         self.use_set: Set[str] = set() #read before any write in the block
         self.in_set: Set[str] = set()
         self.out_set: Set[str] = set()
+        self.is_reachable: bool = False
         self.predecessors: List['BasicBlock'] = []
         self.successors: List['BasicBlock'] = []
 
@@ -304,6 +303,12 @@ def print_liveness(cfg: ControlFlowGraph):
             print(f"  out:{_fmt(sorted(block.out_set))}")
         _print_edges(block)
 
+def print_reachability(cfg: ControlFlowGraph):
+    for block in _ordered_blocks(cfg):
+        if block.kind == BlockKind.EXIT and block.is_reachable:
+            for predecessor in block.predecessors:
+                print(f"{predecessor.id}: there exists a path to Exit without return")
+
 def compute_liveness_in_out(cfg: ControlFlowGraph):
     # Create queue and add all BBs
     block_queue = queue.Queue()
@@ -332,6 +337,42 @@ def compute_liveness_in_out(cfg: ControlFlowGraph):
         block.out_set = updated_out_set
         block.in_set = updated_in_set
 
+def compute_reachability(cfg: ControlFlowGraph):
+    # Create queue and add all BBs
+    block_queue = queue.Queue()
+    for block in _ordered_blocks(cfg):
+        block_queue.put(block)
+
+    # Fixed point iteration
+    while not block_queue.empty():
+        # Get node from the head of the queue
+        block = block_queue.get()
+
+        prev_is_reachable = block.is_reachable
+
+        # Set if reachable
+        if block.kind == BlockKind.ENTRY:
+            block.is_reachable = True
+        elif block.kind == BlockKind.EXIT:
+            for predecessor in block.predecessors:
+                for stmt in predecessor.statements:
+                    # Remove edges to predecessors that have a return.
+                    if stmt.stmt_type == StatementType.RETURN:
+                        # predecessor_has_return = True
+                        block.predecessors.remove(predecessor)
+            block.is_reachable = bool(block.predecessors)
+        else:
+            predecessor: BasicBlock
+            for predecessor in block.predecessors:
+                # Reachability in equation
+                block.is_reachable = (block.is_reachable or predecessor.is_reachable) #\
+                    #and not predecessor_has_return
+
+        # If in has changed; add all successors of the node is enqueued
+        if block.is_reachable != prev_is_reachable:
+            for successor in block.successors:
+                block_queue.put(successor)
+
 def _load_bodies(fname) -> List[tuple]:
     with open(fname) as f:
         tree = ast.parse(f.read(), filename=fname)
@@ -339,26 +380,9 @@ def _load_bodies(fname) -> List[tuple]:
         return [(n.name, n.body) for n in tree.body]
     return [(None, tree.body)]
 
-def main():
-    if len(sys.argv) == 3 and sys.argv[1] == "CFG":
-        return do_CFG(sys.argv[2])
-    elif len(sys.argv) == 3 and sys.argv[1] == "liveness":
-        return do_liveness(sys.argv[2])
-    else:
-        print("Usage: python cfg.py <cmd> <file>")
-        return -1
 
 # Exercise 1
-def do_CFG(fname):
-    bodies = _load_bodies(fname)
-    for name, stmts in bodies:
-        if len(bodies) > 1:
-            print(f"Function {name}:")
-        print_cfg(make_cfg(stmts))
-    return 0
-
-# Exercise 2
-def do_liveness(fname):
+def do_stores(fname):
     bodies = _load_bodies(fname)
     for name, stmts in bodies:
             if len(bodies) > 1:
@@ -369,16 +393,18 @@ def do_liveness(fname):
     return 0
 
 
-    
-# Exercise 1
-def do_stores(fname):
+# Exercise 2
+def do_returns(fname):
+    bodies = _load_bodies(fname)
+    for name, stmts in bodies:
+        if len(bodies) > 1:
+            print(f"Function {name}:")
+        cfg = make_cfg(stmts)
+        compute_reachability(cfg)
+        print_reachability(cfg)
 
     return 0
 
-# Exercise 2
-def do_returns(fname):
-    print("RETURNS not implemented")
-    return -1
 
 # Exercise 3
 def do_taints(fname):
