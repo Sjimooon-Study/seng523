@@ -325,8 +325,9 @@ def compute_liveness_in_out(cfg: ControlFlowGraph):
         for successor in block.successors:
             updated_out_set = updated_out_set.union(successor.in_set)
 
+   
         # Update in set
-        updated_in_set = block.use_set | (block.out_set - block.def_set)
+        updated_in_set = block.use_set | (updated_out_set - block.def_set)
 
         # If in has changed; add all predecessors of the node is enqueued
         if (block.out_set != updated_out_set or
