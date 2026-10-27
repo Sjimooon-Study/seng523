@@ -385,12 +385,22 @@ def _load_bodies(fname) -> List[tuple]:
 # Exercise 1
 def do_stores(fname):
     bodies = _load_bodies(fname)
-    for name, stmts in bodies:
-            if len(bodies) > 1:
-                print(f"Function {name}:")
-            cfg = make_cfg(stmts)
-            compute_liveness_in_out(cfg)
-            print_liveness(cfg)
+    for _, stmts in bodies:
+        cfg = make_cfg(stmts)
+        compute_liveness_in_out(cfg)
+
+        for block in _ordered_blocks(cfg):
+            if block.kind != BlockKind.NORMAL:
+                continue
+            # walk backwards from out set
+            dead = set()
+            live = set(block.out_set)
+            for stmt in reversed(block.statements):
+                dead |= stmt.def_set - live
+                live -= stmt.def_set
+                live |= stmt.use_set
+            for var in sorted(dead):
+                print(f"{block.id}: variable {var} definition is never used")
     return 0
 
 
