@@ -306,8 +306,9 @@ def print_liveness(cfg: ControlFlowGraph):
 def print_reachability(cfg: ControlFlowGraph):
     for block in _ordered_blocks(cfg):
         if block.kind == BlockKind.EXIT and block.is_reachable:
-            for predecessor in block.predecessors:
-                print(f"{predecessor.id}: there exists a path to Exit without return")
+            for predecessor in sorted(block.predecessors, key=_block_key):
+                if predecessor.is_reachable:
+                    print(f"{predecessor.id}: there exists a path to Exit without return")
 
 def compute_liveness_in_out(cfg: ControlFlowGraph):
     # Create queue and add all BBs
@@ -338,6 +339,13 @@ def compute_liveness_in_out(cfg: ControlFlowGraph):
         block.out_set = updated_out_set
         block.in_set = updated_in_set
 
+def prune_return_edges(cfg: ControlFlowGraph):
+    # Only paths that end without a return should reach Exit
+    for predecessor in list(cfg.exit.predecessors):
+        if any(stmt.stmt_type == StatementType.RETURN for stmt in predecessor.statements):
+            predecessor.successors.remove(cfg.exit)
+            cfg.exit.predecessors.remove(predecessor)
+
 def compute_reachability(cfg: ControlFlowGraph):
     # Create queue and add all BBs
     block_queue = queue.Queue()
@@ -354,20 +362,9 @@ def compute_reachability(cfg: ControlFlowGraph):
         # Set if reachable
         if block.kind == BlockKind.ENTRY:
             block.is_reachable = True
-        elif block.kind == BlockKind.EXIT:
-            for predecessor in block.predecessors:
-                for stmt in predecessor.statements:
-                    # Remove edges to predecessors that have a return.
-                    if stmt.stmt_type == StatementType.RETURN:
-                        # predecessor_has_return = True
-                        block.predecessors.remove(predecessor)
-            block.is_reachable = bool(block.predecessors)
         else:
-            predecessor: BasicBlock
-            for predecessor in block.predecessors:
-                # Reachability in equation
-                block.is_reachable = (block.is_reachable or predecessor.is_reachable) #\
-                    #and not predecessor_has_return
+            # Reachability in equation: OR over predecessors' out
+            block.is_reachable = any(p.is_reachable for p in block.predecessors)
 
         # If in has changed; add all successors of the node is enqueued
         if block.is_reachable != prev_is_reachable:
@@ -407,10 +404,9 @@ def do_stores(fname):
 # Exercise 2
 def do_returns(fname):
     bodies = _load_bodies(fname)
-    for name, stmts in bodies:
-        if len(bodies) > 1:
-            print(f"Function {name}:")
+    for _, stmts in bodies:
         cfg = make_cfg(stmts)
+        prune_return_edges(cfg)
         compute_reachability(cfg)
         print_reachability(cfg)
 
