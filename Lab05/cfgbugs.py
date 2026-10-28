@@ -311,26 +311,26 @@ def print_reachability(cfg: ControlFlowGraph):
                     print(f"{predecessor.id}: there exists a path to Exit without return")
 
 def compute_liveness_in_out(cfg: ControlFlowGraph):
-    # Create queue and add all BBs
+    #create queue and add all BBs
     block_queue = queue.Queue()
     for block in _ordered_blocks(cfg):
         block_queue.put(block)
 
-    # Fixed point iteration
+    #fixed point iteration
     while not block_queue.empty():
-        # Get node from the head of the queue
+        #get node from the head of the queue
         block = block_queue.get()
 
-        # Update out set
+        #update out set
         updated_out_set = set()
         for successor in block.successors:
             updated_out_set = updated_out_set.union(successor.in_set)
 
    
-        # Update in set
+        #update in set
         updated_in_set = block.use_set | (updated_out_set - block.def_set)
 
-        # If in has changed; add all predecessors of the node is enqueued
+        #if in has changed; add all predecessors of the node is enqueued
         if (block.out_set != updated_out_set or
             block.in_set != updated_in_set):
             for predecessors in block.predecessors:
@@ -340,33 +340,33 @@ def compute_liveness_in_out(cfg: ControlFlowGraph):
         block.in_set = updated_in_set
 
 def prune_return_edges(cfg: ControlFlowGraph):
-    # Only paths that end without a return should reach Exit
+    #only paths that end without a return should reach Exit
     for predecessor in list(cfg.exit.predecessors):
         if any(stmt.stmt_type == StatementType.RETURN for stmt in predecessor.statements):
             predecessor.successors.remove(cfg.exit)
             cfg.exit.predecessors.remove(predecessor)
 
 def compute_reachability(cfg: ControlFlowGraph):
-    # Create queue and add all BBs
+    #create queue and add all BBs
     block_queue = queue.Queue()
     for block in _ordered_blocks(cfg):
         block_queue.put(block)
 
-    # Fixed point iteration
+    #fixed point iteration
     while not block_queue.empty():
-        # Get node from the head of the queue
+        #get node from the head of the queue
         block = block_queue.get()
 
         prev_is_reachable = block.is_reachable
 
-        # Set if reachable
+        #set if reachable
         if block.kind == BlockKind.ENTRY:
             block.is_reachable = True
         else:
-            # Reachability in equation: OR over predecessors' out
+            #reachability in equation: OR over predecessors out
             block.is_reachable = any(p.is_reachable for p in block.predecessors)
 
-        # If in has changed; add all successors of the node is enqueued
+        #if in has changed; add all successors of the node is enqueued
         if block.is_reachable != prev_is_reachable:
             for successor in block.successors:
                 block_queue.put(successor)
