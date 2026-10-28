@@ -171,24 +171,34 @@ def make_statement(node: ast.stmt) -> Statement:
 
 
 #CFG construction
-def _build(stmts: List[ast.stmt], current: BasicBlock, cfg: ControlFlowGraph) -> BasicBlock:
+def _start_block(current: BasicBlock, cfg: ControlFlowGraph, single: bool) -> BasicBlock:
+    #in single-statement mode, every statement gets its own block
+    if not single or not current.statements:
+        return current
+    block = cfg.new_block()
+    cfg.add_edge(current, block)
+    return block
+
+def _build(stmts: List[ast.stmt], current: BasicBlock, cfg: ControlFlowGraph,
+           single: bool = False) -> BasicBlock:
     for node in stmts:
         if isinstance(node, ast.Pass):
             continue
 
         if isinstance(node, ast.If):
             #ends the current block
+            current = _start_block(current, cfg, single)
             current.add_statement(make_statement(node))
 
             then_block = cfg.new_block()
             cfg.add_edge(current, then_block)
-            then_tail = _build(node.body, then_block, cfg)
+            then_tail = _build(node.body, then_block, cfg, single)
 
             else_tail = None
             if node.orelse:
                 else_block = cfg.new_block()
                 cfg.add_edge(current, else_block)
-                else_tail = _build(node.orelse, else_block, cfg)
+                else_tail = _build(node.orelse, else_block, cfg, single)
 
             join = cfg.new_block()
             cfg.add_edge(then_tail, join)
@@ -204,7 +214,7 @@ def _build(stmts: List[ast.stmt], current: BasicBlock, cfg: ControlFlowGraph) ->
 
             body = cfg.new_block()
             cfg.add_edge(cond, body)
-            body_tail = _build(node.body, body, cfg)
+            body_tail = _build(node.body, body, cfg, single)
             cfg.add_edge(body_tail, cond)
 
             after = cfg.new_block()
@@ -212,12 +222,14 @@ def _build(stmts: List[ast.stmt], current: BasicBlock, cfg: ControlFlowGraph) ->
             current = after
 
         elif isinstance(node, ast.Return):
+            current = _start_block(current, cfg, single)
             current.add_statement(make_statement(node))
             cfg.add_edge(current, cfg.exit)
             # code after a return is a block with no predecessors
             current = cfg.new_block()
 
         else:
+            current = _start_block(current, cfg, single)
             current.add_statement(make_statement(node))
 
     return current
@@ -247,12 +259,12 @@ def _renumber_blocks(cfg: ControlFlowGraph):
             n += 1
     cfg.exit.id = f"BB{n}"
 
-def make_cfg(stmts: List[ast.stmt]) -> ControlFlowGraph:
+def make_cfg(stmts: List[ast.stmt], single: bool = False) -> ControlFlowGraph:
     _reset_basic_block_ids()
     cfg = ControlFlowGraph()
     first = cfg.new_block()
     cfg.add_edge(cfg.entry, first)
-    tail = _build(stmts, first, cfg)
+    tail = _build(stmts, first, cfg, single)
     cfg.add_edge(tail, cfg.exit)
     _remove_empty_blocks(cfg)
     _renumber_blocks(cfg)
@@ -330,7 +342,7 @@ def compute_liveness_in_out(cfg: ControlFlowGraph):
         #update in set
         updated_in_set = block.use_set | (updated_out_set - block.def_set)
 
-        #if in has changed; add all predecessors of the node is enqueued
+        #if in has changed, add all predecessors of the node is enqueued
         if (block.out_set != updated_out_set or
             block.in_set != updated_in_set):
             for predecessors in block.predecessors:
@@ -363,13 +375,66 @@ def compute_reachability(cfg: ControlFlowGraph):
         if block.kind == BlockKind.ENTRY:
             block.is_reachable = True
         else:
-            #reachability in equation: OR over predecessors out
+            #reachability in equation- OR over predecessors out
             block.is_reachable = any(p.is_reachable for p in block.predecessors)
 
-        #if in has changed; add all successors of the node is enqueued
+        #if in has changed, add all successors of the node is enqueued
         if block.is_reachable != prev_is_reachable:
             for successor in block.successors:
                 block_queue.put(successor)
+
+def _calls(node: Optional[ast.AST], func_name: str) -> List[ast.Call]:
+    if node is None:
+        return []
+    return [n for n in ast.walk(node)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == func_name]
+
+def _sink_calls(stmt: Statement) -> List[ast.Call]:
+    #assume no sink in an if/while condition, and dont look into their bodies
+    if stmt.stmt_type in (StatementType.IF, StatementType.WHILE):
+        return []
+    return _calls(stmt.ast_node, "sink")
+
+def taint_transfer(stmt: Statement, tainted: Set[str]) -> Set[str]:
+    out = set(tainted)
+    if stmt.stmt_type != StatementType.ASSIGNMENT:
+        #if, while, print, return and plain calls (including sink) leave taints unchanged
+        return out
+    value = stmt.ast_node.value
+    #assigned from source, or computed from a tainted variable
+    if _calls(value, "source") or stmt.use_set & tainted:
+        return out | stmt.def_set
+    #constant or only untainted variables- the target loses its taint
+    return out - stmt.def_set
+
+def compute_taint_in_out(cfg: ControlFlowGraph):
+    #create queue and add all BBs
+    block_queue = queue.Queue()
+    for block in _ordered_blocks(cfg):
+        block_queue.put(block)
+
+    #fixed point iteration
+    while not block_queue.empty():
+        #get node from the head of the queue
+        block = block_queue.get()
+
+        #update in set: union of predecessors out sets
+        updated_in_set = set()
+        for predecessor in block.predecessors:
+            updated_in_set |= predecessor.out_set
+
+        #update out set by applying each statements transfer function
+        updated_out_set = updated_in_set
+        for stmt in block.statements:
+            updated_out_set = taint_transfer(stmt, updated_out_set)
+
+        #if out has changed, add all successors of the node is enqueued
+        if block.out_set != updated_out_set:
+            for successor in block.successors:
+                block_queue.put(successor)
+
+        block.in_set = updated_in_set
+        block.out_set = updated_out_set
 
 def _load_bodies(fname) -> List[tuple]:
     with open(fname) as f:
@@ -415,8 +480,21 @@ def do_returns(fname):
 
 # Exercise 3
 def do_taints(fname):
-    print("TAINTS not implemented")
-    return -1
+    bodies = _load_bodies(fname)
+    for _, stmts in bodies:
+        cfg = make_cfg(stmts, single=True)
+        compute_taint_in_out(cfg)
+
+        for block in _ordered_blocks(cfg):
+            #check each sink against the taints right before its statement
+            tainted = set(block.in_set)
+            for stmt in block.statements:
+                for call in _sink_calls(stmt):
+                    for var in _merge(*[_names(arg) for arg in call.args]):
+                        if var in tainted:
+                            print(f"{block.id}: tainted variable {var} reaches sink")
+                tainted = taint_transfer(stmt, tainted)
+    return 0
 
 
 if __name__ == "__main__":
