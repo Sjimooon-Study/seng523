@@ -1,5 +1,6 @@
 import sys
 import ast
+from pathlib import Path
 from graphviz import Digraph
 
 class LogicNode:
@@ -76,11 +77,60 @@ def main():
         print("Usage: python mysat.py <operation> <input_file>")
         sys.exit(1)
 
+
 def parse(input_file):
-    return None
+    # Read the file and parse AST
+    code = open(input_file).read()
+    tree = ast.parse(code)
+
+    # Called recursively to build the AST
+    def convert_expressions_to_logic_tree(node):
+        # Base case
+        if isinstance(node, ast.Name):
+            return LogicNode("SYM", node.id)
+
+        operator = node.func.id
+        logic_node = LogicNode(operator, None)
+        # Go down the tree by following the operators to the bottom.
+        logic_node.op1 = convert_expressions_to_logic_tree(node.args[0])
+        if operator != "NOT":
+            logic_node.op2 = convert_expressions_to_logic_tree(node.args[1])
+
+        return logic_node
+
+    # Convert AST to logic tree
+    expressions = []
+    for node in tree.body:
+        if isinstance(node, ast.Expr):
+            expressions.append(node)
+
+    return convert_expressions_to_logic_tree(expressions[0].value)
 
 
 def visualize(input_file):
+    # Parse the file and get logic tree
+    logic_tree = parse(input_file)
+    visualizer = TreeVisualizer()
+
+    # Called recursively to add all subtrees into one tree
+    def add_logic_tree_node(node):
+        # Write symbol OR node type (function/operation)
+        label = node.nsym if node.ntype == "SYM" else node.ntype
+        node_id = visualizer.add_node(label)
+        for child in (node.op1, node.op2):
+            if child is not None:
+                child_id = add_logic_tree_node(child)
+                visualizer.add_edge(node_id, child_id)
+
+        # Base case (if no children)
+        return node_id
+
+    add_logic_tree_node(logic_tree)
+
+    # Render tree and write file ("<input_file>_tree.png") with graphviz
+    output_file = Path(input_file).with_name(f"{Path(input_file).stem}_tree.png")
+    visualizer.render(str(output_file))
+
     return 0
 
 
