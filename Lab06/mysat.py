@@ -1,5 +1,6 @@
 import sys
 import ast
+import itertools
 from pathlib import Path
 from graphviz import Digraph
 
@@ -61,6 +62,10 @@ class TreeVisualizer:
             print(f"Error rendering graph: {e}")
 
 
+class ExpressionVisitor(ast.NodeVisitor):
+    def __init__(self):
+        self.result = None
+
 def main():
     if len(sys.argv) != 3:
         print("Usage: python mysat.py <operation> <input_file>")
@@ -82,11 +87,15 @@ def parse(input_file):
     # Read the file and parse AST
     code = open(input_file).read()
     tree = ast.parse(code)
+    symbols = {}
 
     # Called recursively to build the AST
     def convert_expressions_to_logic_tree(node):
         # Base case
         if isinstance(node, ast.Name):
+            # Add symbol name wo. value (in case it wasn't assigned in the AST)
+            if node.id not in symbols:
+                symbols[node.id] = None
             return LogicNode("SYM", node.id)
 
         operator = node.func.id
@@ -98,18 +107,28 @@ def parse(input_file):
 
         return logic_node
 
-    # Convert AST to logic tree
+    # Convert AST to logic tree and collect symbol values
     expressions = []
     for node in tree.body:
         if isinstance(node, ast.Expr):
             expressions.append(node)
+        elif isinstance(node, ast.Assign):
+            if len(node.targets) != 1:
+                break
+            target = node.targets[0]
+            if (not isinstance(target, ast.Name)
+                    or not isinstance(node.value, ast.Constant)
+                    or not type(node.value.value) is bool):
+                break
+            # Set value for symbol
+            symbols[target.id] = node.value.value
 
-    return convert_expressions_to_logic_tree(expressions[0].value)
+    return convert_expressions_to_logic_tree(expressions[0].value), symbols
 
 
 def visualize(input_file):
     # Parse the file and get logic tree
-    logic_tree = parse(input_file)
+    logic_tree, _ = parse(input_file)
     visualizer = TreeVisualizer()
 
     # Called recursively to add all subtrees into one tree
@@ -135,10 +154,65 @@ def visualize(input_file):
 
 
 def evaluate(input_file):
+    # Parse the file and get logic tree
+    logic_tree, symbols = parse(input_file)
+
+    # Evaluate tree formula with symbols
+    result = evaluate_tree(logic_tree, symbols)
+
+    print(f"The formula evaluates to {result}")
+
     return 0
 
 
+def evaluate_tree(logic_tree: LogicNode, symbols: dict) -> bool:
+    if logic_tree.ntype == "SYM":
+        # Return symbol value (base case)
+        return symbols[logic_tree.nsym]
+
+    # Do AND, OR, NOT, and IMPL with p and q
+    # Single parameter
+    p = evaluate_tree(logic_tree.op1, symbols)
+
+    if logic_tree.ntype == "NOT":
+        return not p
+
+    # Two parameters
+    if logic_tree.op2 is None:
+        raise Exception(f"Missing symbol for {logic_tree.ntype} operation. Expected 2 but only had 1.")
+    q = evaluate_tree(logic_tree.op2, symbols)
+
+    if logic_tree.ntype == "AND":
+        return p and q
+    if logic_tree.ntype == "OR":
+        return p or q
+    if logic_tree.ntype == "IMPL":
+        return not p or q
+
+    return True
+
+
 def solve(input_file):
+    # Parse the file and get logic tree
+    logic_tree, symbols = parse(input_file)
+
+    # Evaluate all symbol assignment combinations
+    for combination in itertools.product([True, False], repeat = len(symbols)):
+        # Assign/re-assign values from the combination to the symbols
+        assignment = dict(zip(symbols, combination))
+
+        # Evaluate
+        result = evaluate_tree(logic_tree, assignment)
+
+        # If we found a combination that evaluates to True; report it and stop.
+        if result:
+            values = ", ".join(f"{name}: {value}" for name, value in assignment.items())
+            print(f"SAT: {values}")
+
+            return 0
+
+    print('UNSAT')
+
     return 0
 
 
