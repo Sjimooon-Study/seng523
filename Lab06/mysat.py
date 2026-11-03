@@ -72,7 +72,7 @@ def main():
         print("Usage: python mysat.py <operation> <input_file>")
         sys.exit(1)
     elif sys.argv[1] == "parse":
-        logic_tree, _ = parse(sys.argv[2])
+        logic_tree = parse(sys.argv[2])
         print(logic_tree.to_string(), end="")
     elif sys.argv[1] == "visualize":
         visualize(sys.argv[2])
@@ -86,6 +86,11 @@ def main():
 
 
 def parse(input_file):
+    #return only the logic tree
+    logic_tree, _ = parse_with_symbols(input_file)
+    return logic_tree
+
+def parse_with_symbols(input_file):
     #read the file and parse AST
     code = open(input_file).read()
     tree = ast.parse(code)
@@ -147,7 +152,7 @@ def parse(input_file):
 
 def visualize(input_file):
     #parse the file and get logic tree
-    logic_tree, _ = parse(input_file)
+    logic_tree = parse(input_file)
     visualizer = TreeVisualizer()
 
     #called recursively to add all subtrees into one tree
@@ -174,7 +179,7 @@ def visualize(input_file):
 
 def evaluate(input_file):
     #parse the file and get logic tree
-    logic_tree, symbols = parse(input_file)
+    logic_tree, symbols = parse_with_symbols(input_file)
 
     #evaluate tree formula with symbols
     result = evaluate_tree(logic_tree, symbols)
@@ -219,7 +224,7 @@ def evaluate_tree(logic_tree: LogicNode, symbols: dict) -> bool:
 
 def solve(input_file):
     #parse the file and get logic tree
-    logic_tree, symbols = parse(input_file)
+    logic_tree, symbols = parse_with_symbols(input_file)
 
     #evaluate all symbol assignment combinations
     for combination in itertools.product([True, False], repeat = len(symbols)):
