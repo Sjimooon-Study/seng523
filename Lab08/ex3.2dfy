@@ -1,5 +1,0 @@
-lemma EquationTwo(x: int) {
-    calc {
-        // Proff here
-    }
-}
