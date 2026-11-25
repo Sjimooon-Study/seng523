@@ -13,7 +13,7 @@ lemma EquationFour(x: int)
     // 7 * x + 5 < (x + 3) * (x + 4)
     calc {
         7 * x + 5 < power(x, 2) + 7 * x + 12;
-        == { assert 5 < power(x, 2) + 12; }
+        == { assert power(x, 2) >= 0; assert 5 < 12; }
         true;
     }
 }
