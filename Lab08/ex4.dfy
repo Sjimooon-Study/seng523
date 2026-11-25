@@ -6,16 +6,39 @@ function Bump(n: int): int
 
 lemma {:induction false} BumpGreater(n: int)
   ensures Bump(n) > n
+  decreases n
 {
-  // TODO: add proof of lemma
+  if n <= 0 {
+    //base case: Bump(n) == 1 and n <= 0 so Bump(n) > n
+    calc {
+      Bump(n);
+    == { assert n <= 0; }
+      1;
+    >  { assert n <= 0; }
+      n;
+    }
+  } else {
+    //the innductive step: assume BumpGreater(n-1). ie. Bump(n-1) > n-1
+    calc {
+      Bump(n);
+    == { assert n > 0; }
+      Bump(n - 1) + 1;
+    >  { BumpGreater(n - 1);
+         assert Bump(n - 1) > n - 1; }
+      (n - 1) + 1;
+    ==
+      n;
+    }
+  }
 }
 
 
 method ExampleLemmaUse(a: int) {
-    // TODO: state lemma appropriately to enable
-    // Dafny to prove the final assertion
     var b := Bump(a);
+    BumpGreater(a);   //a < Bump(a) == b
     var c := Bump(b);
+    BumpGreater(b);   // b < Bump(b) == c
+    //a < b < c over ints, so c - a >= 2
     assert 2 <= c - a;
 }
 
