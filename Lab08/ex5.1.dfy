@@ -4,8 +4,9 @@ method Mul(a: int, b: int) returns (prod: int)
   var i := 0;
   prod := 0;
   while i < b
-    // TODO: add invariant(s)
-    // TODO: add decreases clause 
+    invariant 0 <= i <= b
+    invariant prod == a * i
+    decreases b - i
   {
     prod := prod + a;
     i := i + 1;

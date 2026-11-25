@@ -5,8 +5,9 @@ method SumEven(n: int) returns (sum: int)
   sum := 0;
 
   while i < n
-    // TODO: add invariant(s)
-    // TODO: add decreases clause
+    invariant 0 <= i <= n
+    invariant sum == i * (i - 1)
+    decreases n - i
   {
     sum := sum + 2 * i;
     i := i + 1;

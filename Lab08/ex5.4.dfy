@@ -3,8 +3,8 @@ method ReachN(n: int) returns (i: int)
 {
   i := 0;
   while i < n
-    // TODO: add invariant(s)
-    // TODO: add decreases clause
+    invariant 0 <= i <= n
+    decreases n - i
   {
     i := i + 1;
   }
